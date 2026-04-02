@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 interface ScoreCardProps {
   score: Score;
   onDelete: (score: Score) => Promise<void>;
+  onOpen?: (scoreId: string) => void;
 }
 
 const statusStyles: Record<Score['status'], string> = {
@@ -23,11 +24,12 @@ function formatDate(timestamp: Score['createdAt']): string {
   }).format(date);
 }
 
-export default function ScoreCard({ score, onDelete }: ScoreCardProps): JSX.Element {
+export default function ScoreCard({ score, onDelete, onOpen }: ScoreCardProps): JSX.Element {
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <Link
         to={`/scores/${score.id}`}
+        onClick={() => onOpen?.(score.id)}
         className="flex h-36 items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200"
       >
         <span className="text-sm font-medium text-slate-600">Open Score</span>

@@ -9,6 +9,9 @@ export interface Score {
   id: string;
   ownerId: string;
   title: string;
+  composer: string;
+  instrument: string;
+  difficulty: number;
   pdfUrl: string;
   musicXmlUrl: string | null;
   midiUrl: string | null;

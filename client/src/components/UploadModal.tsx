@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 interface UploadModalProps {
@@ -7,6 +7,22 @@ interface UploadModalProps {
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
+const INSTRUMENT_OPTIONS = [
+  'Piano',
+  'Violin',
+  'Viola',
+  'Cello',
+  'Bass',
+  'Flute',
+  'Clarinet',
+  'Saxophone',
+  'Trumpet',
+  'Trombone',
+  'Percussion',
+  'Voice',
+  'Guitar',
+  'Other',
+];
 
 function getTitleFromFilename(fileName: string): string {
   return fileName.replace(/\.pdf$/i, '').trim() || 'Untitled Score';
@@ -20,8 +36,27 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
   const [uploading, setUploading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pieceName, setPieceName] = useState<string>('');
+  const [composer, setComposer] = useState<string>('');
+  const [instrument, setInstrument] = useState<string>(INSTRUMENT_OPTIONS[0]);
+  const [difficulty, setDifficulty] = useState<number>(5);
 
   const progressLabel = useMemo(() => `${Math.round(progress)}%`, [progress]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDragging(false);
+      setUploading(false);
+      setProgress(0);
+      setError(null);
+      setSelectedFile(null);
+      setPieceName('');
+      setComposer('');
+      setInstrument(INSTRUMENT_OPTIONS[0]);
+      setDifficulty(5);
+    }
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -72,17 +107,27 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
     return null;
   }
 
-  async function uploadFile(file: File): Promise<void> {
+  async function uploadFile(): Promise<void> {
+    if (!selectedFile) {
+      setError('Select a PDF file to upload.');
+      return;
+    }
+
     if (!user) {
       setError('You must be signed in to upload.');
       return;
     }
 
-    const validationError = validateFile(file);
+    const validationError = validateFile(selectedFile);
     if (validationError) {
       setError(validationError);
       return;
     }
+
+    const normalizedTitle = pieceName.trim() || getTitleFromFilename(selectedFile.name);
+    const normalizedComposer = composer.trim() || 'Unknown Composer';
+    const normalizedInstrument = instrument.trim() || INSTRUMENT_OPTIONS[0];
+    const normalizedDifficulty = Math.min(10, Math.max(1, Math.round(difficulty)));
 
     setUploading(true);
     setError(null);
@@ -97,8 +142,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
 
       const token = await user.getIdToken();
       const payload = new FormData();
-      payload.append('file', file, file.name);
-      payload.append('title', getTitleFromFilename(file.name));
+      payload.append('file', selectedFile, selectedFile.name);
+      payload.append('title', normalizedTitle);
+      payload.append('composer', normalizedComposer);
+      payload.append('instrument', normalizedInstrument);
+      payload.append('difficulty', String(normalizedDifficulty));
 
       setProgress(25);
       const uploadResponse = await fetch(`${baseUrl}/scores/upload`, {
@@ -141,10 +189,26 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
   }
 
   function handleFileSelection(files: FileList | null): void {
-    const file = files?.[0];
-    if (file) {
-      void uploadFile(file);
+    if (uploading) {
+      return;
     }
+
+    const file = files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    const validationError = validateFile(file);
+    if (validationError) {
+      setError(validationError);
+      setSelectedFile(null);
+      return;
+    }
+
+    setSelectedFile(file);
+    setPieceName(getTitleFromFilename(file.name));
+    setError(null);
   }
 
   return (
@@ -164,24 +228,41 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
 
         <div
           onDragOver={(event) => {
+            if (uploading) {
+              return;
+            }
             event.preventDefault();
             setIsDragging(true);
           }}
-          onDragLeave={() => setIsDragging(false)}
+          onDragLeave={() => {
+            if (!uploading) {
+              setIsDragging(false);
+            }
+          }}
           onDrop={(event) => {
+            if (uploading) {
+              return;
+            }
             event.preventDefault();
             setIsDragging(false);
             handleFileSelection(event.dataTransfer.files);
           }}
-          onClick={() => fileInputRef.current?.click()}
-          className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition ${
+          onClick={() => {
+            if (!uploading) {
+              fileInputRef.current?.click();
+            }
+          }}
+          className={`rounded-xl border-2 border-dashed p-8 text-center transition ${
             isDragging
               ? 'border-slate-500 bg-slate-100'
               : 'border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100'
-          }`}
+          } ${uploading ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
         >
           <p className="text-sm font-medium text-slate-700">Drag and drop PDF here</p>
           <p className="mt-1 text-xs text-slate-500">or click to browse (max 50 MB)</p>
+          {selectedFile ? (
+            <p className="mt-3 text-xs font-medium text-slate-700">Selected: {selectedFile.name}</p>
+          ) : null}
         </div>
 
         <input
@@ -189,8 +270,70 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
           type="file"
           accept="application/pdf"
           className="hidden"
-          onChange={(event) => handleFileSelection(event.target.files)}
+          onChange={(event) => {
+            handleFileSelection(event.target.files);
+            event.target.value = '';
+          }}
         />
+
+        <div className="mt-4 space-y-4">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-700">Name of piece</span>
+            <input
+              type="text"
+              value={pieceName}
+              onChange={(event) => setPieceName(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              placeholder="e.g. Clair de Lune"
+              disabled={uploading}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-700">Composer</span>
+            <input
+              type="text"
+              value={composer}
+              onChange={(event) => setComposer(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              placeholder="e.g. Claude Debussy"
+              disabled={uploading}
+            />
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-slate-700">Instrument</span>
+            <select
+              value={instrument}
+              onChange={(event) => setInstrument(event.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 outline-none transition focus:border-slate-500"
+              disabled={uploading}
+            >
+              {INSTRUMENT_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <div className="mb-1 flex items-center justify-between text-xs font-medium text-slate-700">
+              <span>Difficulty (out of 10)</span>
+              <span>{difficulty}/10</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              value={difficulty}
+              onChange={(event) => setDifficulty(Number(event.target.value))}
+              className="w-full"
+              disabled={uploading}
+            />
+          </label>
+        </div>
 
         {uploading ? (
           <div className="mt-4">
@@ -202,6 +345,27 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
         ) : null}
 
         {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            onClick={onClose}
+            disabled={uploading}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => {
+              void uploadFile();
+            }}
+            disabled={uploading || !selectedFile}
+          >
+            Upload score
+          </button>
+        </div>
       </div>
     </div>
   );

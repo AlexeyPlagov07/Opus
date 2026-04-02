@@ -9,6 +9,11 @@ import type { Score } from '../../../shared/types';
 const router = Router();
 const VALID_STATUSES: Score['status'][] = ['uploaded', 'processing', 'ready', 'error'];
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const DEFAULT_INSTRUMENT = 'Piano';
+const DEFAULT_COMPOSER = 'Unknown Composer';
+const DEFAULT_DIFFICULTY = 5;
+const MIN_DIFFICULTY = 1;
+const MAX_DIFFICULTY = 10;
 
 const upload = multer({
 	storage: multer.memoryStorage(),
@@ -22,6 +27,31 @@ const upload = multer({
 
 function getTitleFromFilename(fileName: string): string {
 	return fileName.replace(/\.pdf$/i, '').trim() || 'Untitled Score';
+}
+
+function getTrimmedString(value: unknown): string | null {
+	if (typeof value !== 'string') {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeDifficulty(value: unknown): number {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return Math.min(MAX_DIFFICULTY, Math.max(MIN_DIFFICULTY, Math.round(value)));
+	}
+
+	if (typeof value === 'string') {
+		const parsed = Number(value);
+
+		if (Number.isFinite(parsed)) {
+			return Math.min(MAX_DIFFICULTY, Math.max(MIN_DIFFICULTY, Math.round(parsed)));
+		}
+	}
+
+	return DEFAULT_DIFFICULTY;
 }
 
 function buildFirebaseDownloadUrl(bucketName: string, objectPath: string, token: string): string {
@@ -117,6 +147,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 		const downloadToken = randomUUID();
 		const bucket = adminStorage.bucket();
 		const bucketFile = bucket.file(objectPath);
+		const requestedTitle = getTrimmedString(req.body?.title);
+		const requestedComposer = getTrimmedString(req.body?.composer);
+		const requestedInstrument = getTrimmedString(req.body?.instrument);
+		const requestedDifficulty = normalizeDifficulty(req.body?.difficulty);
 
 		await bucketFile.save(file.buffer, {
 			resumable: false,
@@ -131,7 +165,10 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 		const scorePayload: Score = {
 			id: scoreRef.id,
 			ownerId: uid,
-			title: getTitleFromFilename(file.originalname),
+			title: requestedTitle ?? getTitleFromFilename(file.originalname),
+			composer: requestedComposer ?? DEFAULT_COMPOSER,
+			instrument: requestedInstrument ?? DEFAULT_INSTRUMENT,
+			difficulty: requestedDifficulty,
 			pdfUrl: buildFirebaseDownloadUrl(bucket.name, objectPath, downloadToken),
 			musicXmlUrl: null,
 			midiUrl: null,
@@ -145,6 +182,9 @@ router.post('/upload', upload.single('file'), async (req, res) => {
 			id: scorePayload.id,
 			ownerId: scorePayload.ownerId,
 			title: scorePayload.title,
+			composer: scorePayload.composer,
+			instrument: scorePayload.instrument,
+			difficulty: scorePayload.difficulty,
 			pdfUrl: scorePayload.pdfUrl,
 			musicXmlUrl: scorePayload.musicXmlUrl,
 			midiUrl: scorePayload.midiUrl,
@@ -222,6 +262,12 @@ router.get('/', async (req, res) => {
 				id: snapshot.id,
 				ownerId: String(data.ownerId ?? ''),
 				title: String(data.title ?? 'Untitled Score'),
+				composer: String(data.composer ?? DEFAULT_COMPOSER),
+				instrument: String(data.instrument ?? DEFAULT_INSTRUMENT),
+				difficulty:
+					typeof data.difficulty === 'number' && Number.isFinite(data.difficulty)
+						? Math.min(MAX_DIFFICULTY, Math.max(MIN_DIFFICULTY, Math.round(data.difficulty)))
+						: DEFAULT_DIFFICULTY,
 				pdfUrl: String(data.pdfUrl ?? ''),
 				musicXmlUrl: (data.musicXmlUrl as string | null) ?? null,
 				midiUrl: (data.midiUrl as string | null) ?? null,

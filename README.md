@@ -1,44 +1,39 @@
 # Opus
 
-Full-stack sheet music foundation app:
+Opus is a full-stack sheet music application.
 
-- React + TypeScript + Vite client
-- Node + Express TypeScript server
-- Firebase Auth + Firestore + Storage
+It lets users:
+- Sign in with Firebase Authentication
+- Upload sheet music PDFs
+- Store metadata (piece name, composer, instrument, difficulty)
+- Browse a personal dashboard
+- Search by piece name or composer
+- Sort by recently opened, recently uploaded, alphabetical, and difficulty
+- Open a score in an in-app viewer and annotate it
+- Delete scores
 
-This version includes:
+## Stack
 
-- Auth (email/password + Google)
-- Protected dashboard
-- PDF upload and storage
-- Score metadata in Firestore
-- Score list + delete flow
+- Client: React, TypeScript, Vite, Tailwind
+- Server: Node.js, Express, TypeScript
+- Data/Auth/Files: Firebase Auth, Firestore, Cloud Storage
 
-OMR, MusicXML generation, and audio playback are intentionally not implemented yet.
-
-## Important Note About GCS
-
-Cloud Storage for Firebase is already backed by Google Cloud Storage (GCS).
-
-That means:
-
-- You are already storing files in a GCS bucket.
-- Using "Firebase Storage" does not mean a separate non-GCS storage system.
-- Storage cost is still based on GCS usage (stored GB, operations, egress).
-
-This project now supports choosing a custom bucket explicitly via env vars.
-
-For reliability with custom buckets, uploads are sent through the backend API and then written to GCS by the server.
-This avoids direct browser-to-GCS CORS preflight failures.
-
-## 1. Prerequisites
+## Prerequisites
 
 - Node.js 20+ (LTS recommended)
 - npm 10+
 - A Firebase project
-- Access to the Google Cloud project that owns your bucket
+- A Firebase service account with access to Firestore and Storage
 
-## 2. Install Dependencies
+## Project Structure
+
+- client: React app (dashboard, auth, score viewer)
+- server: Express API (auth verification, score upload/list/delete/pdf streaming)
+- shared: shared TypeScript types used by client and server
+
+## 1) Install Dependencies
+
+From the project root:
 
 ```powershell
 cd client
@@ -48,80 +43,11 @@ cd ../server
 npm install
 ```
 
-## 3. Firebase Setup (Auth + Firestore)
+## 2) Configure Environment Variables
 
-### 3.1 Create/select Firebase project
+### Client config
 
-1. Open Firebase Console.
-2. Create a project or reuse one.
-
-### 3.2 Register web app
-
-1. In Project settings, add/register a Web app.
-2. Copy Firebase Web config values.
-
-### 3.3 Enable Authentication
-
-1. Authentication -> Sign-in method.
-2. Enable Email/Password.
-3. Enable Google.
-
-### 3.4 Create Firestore
-
-1. Firestore Database -> Create database.
-2. Choose production mode and region.
-3. Deploy the included Firestore rules.
-
-### 3.5 Service account for server
-
-1. Project settings -> Service accounts.
-2. Generate private key JSON.
-3. Map JSON values into `server/.env`.
-
-Never commit service account files or secrets.
-
-## 4. Use Your GCS Bucket
-
-You have two supported paths.
-
-### Option A: Firebase default bucket (simplest)
-
-Use the Firebase bucket shown in your web config:
-
-- Example: `project-id.firebasestorage.app` or `project-id.appspot.com`
-
-Set:
-
-- `VITE_FIREBASE_STORAGE_BUCKET` on client
-- `FIREBASE_STORAGE_BUCKET` on server
-
-### Option B: Custom bucket in same Google Cloud project
-
-If you want a different bucket name for cost/accounting or lifecycle rules:
-
-1. Create bucket in Google Cloud Storage.
-2. Ensure your Firebase/Server service account has access.
-3. Set these env vars:
-
-Client:
-
-- `VITE_FIREBASE_STORAGE_BUCKET` (keep normal Firebase config complete)
-- `VITE_GCS_BUCKET=<your-bucket-name-without-gs-prefix>`
-
-Server:
-
-- `FIREBASE_STORAGE_BUCKET=<your-bucket-name>` or `GCS_BUCKET=<your-bucket-name>`
-
-Notes:
-
-- Use bucket name only, not `gs://` in env values.
-- The server uploads files to this bucket, so browser CORS is not required for upload requests.
-
-## 5. Environment Variables
-
-### 5.1 Client (`client/.env`)
-
-Create from `client/.env.example`:
+Create client/.env with:
 
 ```env
 VITE_FIREBASE_API_KEY=
@@ -134,9 +60,13 @@ VITE_API_BASE_URL=http://localhost:4000
 VITE_GCS_BUCKET=
 ```
 
-### 5.2 Server (`server/.env`)
+Notes:
+- VITE_API_BASE_URL is required for upload and PDF access through the backend.
+- Leave VITE_GCS_BUCKET empty unless you intentionally use a custom bucket.
 
-Create from `server/.env.example`:
+### Server config
+
+Create server/.env with:
 
 ```env
 PORT=4000
@@ -148,66 +78,114 @@ FIREBASE_STORAGE_BUCKET=
 GCS_BUCKET=
 ```
 
-Map from service account JSON:
+Map values from your Firebase service account JSON:
+- project_id -> FIREBASE_PROJECT_ID
+- client_email -> FIREBASE_CLIENT_EMAIL
+- private_key -> FIREBASE_PRIVATE_KEY (keep escaped \n line breaks)
 
-- `project_id` -> `FIREBASE_PROJECT_ID`
-- `client_email` -> `FIREBASE_CLIENT_EMAIL`
-- `private_key` -> `FIREBASE_PRIVATE_KEY`
+Bucket notes:
+- Use FIREBASE_STORAGE_BUCKET for the primary bucket.
+- GCS_BUCKET is an optional fallback bucket name.
 
-Keep `FIREBASE_PRIVATE_KEY` quoted, with escaped `\n` line breaks.
+## 3) Firebase Setup
 
-## 6. Deploy Rules
+1. Create or select a Firebase project.
+2. Add a Web app and copy config values to client/.env.
+3. Enable Authentication providers:
+   - Email/Password
+   - Google
+4. Create Firestore Database.
+5. Create/enable Cloud Storage.
+
+Optional: deploy included rules from project root:
 
 ```powershell
 npm install -g firebase-tools
 firebase login
-firebase init
 firebase deploy --only firestore:rules,storage
 ```
 
-## 7. Run Locally
+## 4) Run the App Locally
 
-Terminal A:
+Use two terminals.
+
+Terminal A (server):
 
 ```powershell
 cd server
 npm run dev
 ```
 
-Terminal B:
+Terminal B (client):
 
 ```powershell
 cd client
 npm run dev
 ```
 
-Client URL: `http://localhost:5173`
+Open:
+- Client: http://localhost:5173
+- Server health check: http://localhost:4000/health
 
-## 8. Cost Control Tips (GCS)
+## 5) Build for Production
 
-1. Set lifecycle policies to auto-delete old uploads.
-2. Keep files in a low-cost region near users.
-3. Avoid unnecessary egress (serve from same region when possible).
-4. Track operation counts (list/get/delete) in Cloud Monitoring.
-5. Keep test data cleanup automated.
+```powershell
+cd server
+npm run build
 
-## 9. Troubleshooting
+cd ../client
+npm run build
+```
 
-Client says missing env var:
+To run the built server:
 
-- Verify all required `VITE_FIREBASE_*` fields exist.
-- Restart Vite after env changes.
+```powershell
+cd server
+npm start
+```
 
-Server auth/storage errors:
+## 6) How to Use the Application
 
-- Recheck service account values and private key format.
-- Verify bucket name and IAM permissions.
+1. Sign up or sign in.
+2. Open the dashboard.
+3. Upload a PDF and fill metadata:
+   - Name of piece
+   - Composer
+   - Instrument
+   - Difficulty (1-10)
+4. Use search to find scores by piece name or composer.
+5. Use sort options:
+   - Recently opened
+   - Recently uploaded
+   - Alphabetical
+   - Difficulty (low to high)
+   - Difficulty (high to low)
+6. Open a score card to view and annotate in-app.
+7. Delete a score from the dashboard if needed.
 
-Firestore permission denied:
+## Troubleshooting
 
-- Confirm Firestore rules were deployed to the correct project.
+### Missing client env variable error
 
-Storage permission denied:
+- Confirm all required VITE_FIREBASE_* variables exist in client/.env.
+- Restart the Vite dev server after env changes.
 
-- Confirm Storage rules are deployed.
-- Confirm upload path UID matches authenticated UID.
+### Upload fails with API/base URL errors
+
+- Confirm VITE_API_BASE_URL in client/.env points to your running server.
+- Confirm the server is running on PORT (default 4000).
+
+### Unauthorized (401) from API
+
+- Ensure you are signed in.
+- Ensure the Authorization header is being sent by the client.
+- Verify Firebase Admin credentials in server/.env.
+
+### Permission denied in Firestore/Storage
+
+- Verify your Firebase rules are deployed to the correct project.
+- Verify service account permissions to Firestore and Storage.
+
+### CORS issues
+
+- Ensure CLIENT_ORIGIN in server/.env matches your client URL (for local dev: http://localhost:5173).
