@@ -1,4 +1,5 @@
 import type { Score } from '../../../shared/types';
+import { Link } from 'react-router-dom';
 
 interface ScoreCardProps {
   score: Score;
@@ -25,14 +26,12 @@ function formatDate(timestamp: Score['createdAt']): string {
 export default function ScoreCard({ score, onDelete }: ScoreCardProps): JSX.Element {
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <a
-        href={score.pdfUrl}
-        target="_blank"
-        rel="noreferrer"
+      <Link
+        to={`/scores/${score.id}`}
         className="flex h-36 items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200"
       >
-        <span className="text-sm font-medium text-slate-600">Open PDF</span>
-      </a>
+        <span className="text-sm font-medium text-slate-600">Open Score</span>
+      </Link>
 
       <div className="space-y-3 p-4">
         <div className="flex items-start justify-between gap-2">

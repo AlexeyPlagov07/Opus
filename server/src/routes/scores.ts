@@ -28,6 +28,68 @@ function buildFirebaseDownloadUrl(bucketName: string, objectPath: string, token:
 	return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
 }
 
+function extractObjectPathFromPdfUrl(pdfUrl: string, bucketName: string): string | null {
+	try {
+		const parsed = new URL(pdfUrl);
+		const encodedPathAfterObjectMarker = parsed.pathname.split('/o/')[1];
+
+		if (encodedPathAfterObjectMarker) {
+			return decodeURIComponent(encodedPathAfterObjectMarker);
+		}
+
+		const segments = parsed.pathname.split('/').filter(Boolean);
+
+		if (segments.length === 0) {
+			return null;
+		}
+
+		if (segments[0] === bucketName && segments.length > 1) {
+			return decodeURIComponent(segments.slice(1).join('/'));
+		}
+
+		return decodeURIComponent(segments.join('/'));
+	} catch {
+		return null;
+	}
+}
+
+function parseRangeHeader(rangeHeader: string, fileSize: number): { start: number; end: number } | null {
+	const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+
+	if (!match) {
+		return null;
+	}
+
+	const [, startRaw, endRaw] = match;
+
+	if (startRaw === '' && endRaw === '') {
+		return null;
+	}
+
+	let start: number;
+	let end: number;
+
+	if (startRaw === '') {
+		const suffixLength = Number(endRaw);
+
+		if (!Number.isFinite(suffixLength) || suffixLength <= 0) {
+			return null;
+		}
+
+		start = Math.max(fileSize - suffixLength, 0);
+		end = fileSize - 1;
+	} else {
+		start = Number(startRaw);
+		end = endRaw === '' ? fileSize - 1 : Number(endRaw);
+	}
+
+	if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || end >= fileSize) {
+		return null;
+	}
+
+	return { start, end };
+}
+
 router.use(verifyToken);
 
 router.post('/upload', upload.single('file'), async (req, res) => {
@@ -173,6 +235,121 @@ router.get('/', async (req, res) => {
 		res.status(200).json({ scores });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : 'Failed to fetch scores.';
+		res.status(500).json({ error: message });
+	}
+});
+
+router.get('/:id/pdf', async (req, res) => {
+	try {
+		const uid = req.user?.uid;
+		const scoreId = req.params.id;
+
+		if (!uid) {
+			res.status(401).json({ error: 'Unauthorized.' });
+			return;
+		}
+
+		if (!scoreId) {
+			res.status(400).json({ error: 'Missing score id.' });
+			return;
+		}
+
+		const scoreRef = adminDb.collection('scores').doc(scoreId);
+		const scoreSnapshot = await scoreRef.get();
+
+		if (!scoreSnapshot.exists) {
+			res.status(404).json({ error: 'Score not found.' });
+			return;
+		}
+
+		const data = scoreSnapshot.data() as Record<string, unknown>;
+
+		if (data.ownerId !== uid) {
+			res.status(403).json({ error: 'Forbidden.' });
+			return;
+		}
+
+		const bucket = adminStorage.bucket();
+		const parsedObjectPath = extractObjectPathFromPdfUrl(String(data.pdfUrl ?? ''), bucket.name);
+		const fallbackObjectPath = `scores/${uid}/${scoreId}/original.pdf`;
+		const candidateObjectPaths = [...new Set([parsedObjectPath, fallbackObjectPath].filter(Boolean))] as string[];
+
+		let resolvedFile = null as ReturnType<typeof bucket.file> | null;
+
+		for (const candidatePath of candidateObjectPaths) {
+			const file = bucket.file(candidatePath);
+			const [exists] = await file.exists();
+
+			if (exists) {
+				resolvedFile = file;
+				break;
+			}
+		}
+
+		if (!resolvedFile) {
+			res.status(404).json({ error: 'PDF file not found in storage.' });
+			return;
+		}
+
+		const [metadata] = await resolvedFile.getMetadata();
+		const fileSize = Number(metadata.size ?? 0);
+		const contentType = metadata.contentType ?? 'application/pdf';
+
+		res.setHeader('Content-Type', contentType);
+		res.setHeader('Accept-Ranges', 'bytes');
+		res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+
+		const rangeHeader = req.headers.range;
+
+		if (rangeHeader && fileSize > 0) {
+			const parsedRange = parseRangeHeader(rangeHeader, fileSize);
+
+			if (!parsedRange) {
+				res.status(416).setHeader('Content-Range', `bytes */${fileSize}`).end();
+				return;
+			}
+
+			const { start, end } = parsedRange;
+
+			res.status(206);
+			res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+			res.setHeader('Content-Length', String(end - start + 1));
+
+			resolvedFile
+				.createReadStream({ start, end })
+				.on('error', (streamError: unknown) => {
+					const message = streamError instanceof Error ? streamError.message : 'Failed to stream PDF.';
+
+					if (!res.headersSent) {
+						res.status(502).json({ error: message });
+						return;
+					}
+
+					res.destroy();
+				})
+				.pipe(res);
+			return;
+		}
+
+		if (fileSize > 0) {
+			res.setHeader('Content-Length', String(fileSize));
+		}
+
+		resolvedFile
+			.createReadStream()
+			.on('error', (streamError: unknown) => {
+				const message = streamError instanceof Error ? streamError.message : 'Failed to stream PDF.';
+
+				if (!res.headersSent) {
+					res.status(502).json({ error: message });
+					return;
+				}
+
+				res.destroy();
+			})
+			.pipe(res);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : 'Failed to fetch score PDF.';
 		res.status(500).json({ error: message });
 	}
 });
