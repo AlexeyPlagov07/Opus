@@ -1,3 +1,8 @@
+/**
+ * Client authentication context.
+ *
+ * Provides auth session state and sign-in/sign-out actions to the React tree.
+ */
 import {
   createContext,
   useCallback,
@@ -28,6 +33,12 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/**
+ * Auth provider component.
+ *
+ * @param children Nested React UI that needs auth context.
+ * @returns Context provider with session state and auth actions.
+ */
 export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -65,12 +76,17 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+/**
+ * Hook for consuming authenticated session context.
+ *
+ * @returns Auth context value.
+ */
 export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
+  const authContext = useContext(AuthContext);
 
-  if (!ctx) {
+  if (!authContext) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
 
-  return ctx;
+  return authContext;
 }

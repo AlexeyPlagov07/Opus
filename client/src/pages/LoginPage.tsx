@@ -1,7 +1,18 @@
+/**
+ * Login page shell.
+ *
+ * Redirects authenticated users to the dashboard and renders AuthForm for
+ * unauthenticated users.
+ */
 import { Navigate } from 'react-router-dom';
 import AuthForm from '../components/AuthForm';
 import { useAuth } from '../contexts/AuthContext';
 
+/**
+ * Renders the login/register screen.
+ *
+ * @returns Login page UI or redirect.
+ */
 export default function LoginPage(): JSX.Element {
   const { user, loading } = useAuth();
 

@@ -1,3 +1,9 @@
+/*
+ * Global stylesheet entrypoint.
+ *
+ * Loads Tailwind layers and baseline app-wide element styles shared by all
+ * screens.
+ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

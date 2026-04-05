@@ -1,3 +1,8 @@
+/**
+ * Score summary card.
+ *
+ * Presents one score item in the dashboard grid with open and delete actions.
+ */
 import type { Score } from '../../../shared/types';
 import { Link } from 'react-router-dom';
 
@@ -14,6 +19,12 @@ const statusStyles: Record<Score['status'], string> = {
   error: 'bg-red-100 text-red-700',
 };
 
+/**
+ * Formats created timestamp for compact card display.
+ *
+ * @param timestamp Score creation timestamp.
+ * @returns Localized date string.
+ */
 function formatDate(timestamp: Score['createdAt']): string {
   const date = new Date(timestamp.seconds * 1000);
 
@@ -24,6 +35,14 @@ function formatDate(timestamp: Score['createdAt']): string {
   }).format(date);
 }
 
+/**
+ * Renders a dashboard score card.
+ *
+ * @param score Score item to display.
+ * @param onDelete Async callback for confirmed deletion.
+ * @param onOpen Optional callback used for recently-opened tracking.
+ * @returns Score card element.
+ */
 export default function ScoreCard({ score, onDelete, onOpen }: ScoreCardProps): JSX.Element {
   return (
     <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

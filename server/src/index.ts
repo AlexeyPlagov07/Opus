@@ -1,3 +1,9 @@
+/**
+ * Express API entrypoint.
+ *
+ * Bootstraps middleware, mounts feature routes, and installs fallback/error
+ * handlers for the Opus backend service.
+ */
 import 'dotenv/config';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
@@ -5,12 +11,22 @@ import cors from 'cors';
 import scoresRouter from './routes/scores';
 
 const app = express();
-const port = Number(process.env.PORT ?? 4000);
-const clientOrigin = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+const PORT = Number(process.env.PORT ?? 4000);
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+
+/**
+ * Returns a normalized message for unhandled server errors.
+ *
+ * @param error Unknown thrown value from middleware/route stack.
+ * @returns Safe string message for API error responses.
+ */
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unexpected server error.';
+}
 
 app.use(
   cors({
-    origin: clientOrigin,
+    origin: CLIENT_ORIGIN,
     credentials: true,
   })
 );
@@ -27,11 +43,10 @@ app.use((_req, res) => {
 });
 
 app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  const message = error instanceof Error ? error.message : 'Unexpected server error.';
-  res.status(500).json({ error: message });
+  res.status(500).json({ error: getErrorMessage(error) });
 });
 
-app.listen(port, () => {
+app.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`Server listening on port ${port}`);
+  console.log(`Server listening on port ${PORT}`);
 });

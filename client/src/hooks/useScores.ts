@@ -1,3 +1,9 @@
+/**
+ * Live score query hook.
+ *
+ * Subscribes to the authenticated user's scores collection and maps Firestore
+ * documents into shared Score domain objects.
+ */
 import { useEffect, useState } from 'react';
 import {
   collection,
@@ -17,6 +23,12 @@ interface UseScoresResult {
   error: string | null;
 }
 
+/**
+ * Checks whether an unknown value matches Firestore timestamp shape.
+ *
+ * @param value Unknown timestamp candidate.
+ * @returns True when value exposes numeric seconds and nanoseconds.
+ */
 function isTimestampLike(value: unknown): value is { seconds: number; nanoseconds: number } {
   if (!value || typeof value !== 'object') {
     return false;
@@ -26,6 +38,12 @@ function isTimestampLike(value: unknown): value is { seconds: number; nanosecond
   return typeof candidate.seconds === 'number' && typeof candidate.nanoseconds === 'number';
 }
 
+/**
+ * Converts a Firestore score document to shared Score shape.
+ *
+ * @param snapshot Firestore score document snapshot.
+ * @returns Normalized score object with safe fallbacks.
+ */
 function mapScore(snapshot: QueryDocumentSnapshot): Score {
   const data = snapshot.data() as Record<string, unknown>;
 
@@ -49,6 +67,11 @@ function mapScore(snapshot: QueryDocumentSnapshot): Score {
   };
 }
 
+/**
+ * Subscribes to score updates for the current user.
+ *
+ * @returns Scores list and loading/error states for dashboard/view pages.
+ */
 export function useScores(): UseScoresResult {
   const { user } = useAuth();
   const [scores, setScores] = useState<Score[]>([]);

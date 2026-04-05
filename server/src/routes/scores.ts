@@ -1,3 +1,9 @@
+/**
+ * Score routes module.
+ *
+ * Implements authenticated score CRUD and binary asset streaming endpoints for
+ * PDF/MusicXML/MIDI files stored in Cloud Storage and metadata in Firestore.
+ */
 import { Router } from 'express';
 import multer from 'multer';
 import { randomUUID } from 'node:crypto';
@@ -25,10 +31,22 @@ const upload = multer({
 	},
 });
 
+/**
+ * Derives a default score title from an uploaded filename.
+ *
+ * @param fileName Uploaded PDF file name.
+ * @returns Title without file extension.
+ */
 function getTitleFromFilename(fileName: string): string {
 	return fileName.replace(/\.pdf$/i, '').trim() || 'Untitled Score';
 }
 
+/**
+ * Returns a non-empty trimmed string when present.
+ *
+ * @param value Unknown input value.
+ * @returns Trimmed string or null when empty/non-string.
+ */
 function getTrimmedString(value: unknown): string | null {
 	if (typeof value !== 'string') {
 		return null;
@@ -38,6 +56,12 @@ function getTrimmedString(value: unknown): string | null {
 	return trimmed.length > 0 ? trimmed : null;
 }
 
+/**
+ * Normalizes difficulty input to a bounded integer.
+ *
+ * @param value Difficulty value from request payload.
+ * @returns Difficulty constrained to project min/max defaults.
+ */
 function normalizeDifficulty(value: unknown): number {
 	if (typeof value === 'number' && Number.isFinite(value)) {
 		return Math.min(MAX_DIFFICULTY, Math.max(MIN_DIFFICULTY, Math.round(value)));
@@ -54,10 +78,25 @@ function normalizeDifficulty(value: unknown): number {
 	return DEFAULT_DIFFICULTY;
 }
 
+/**
+ * Builds Firebase download URL for a storage object path and token.
+ *
+ * @param bucketName Storage bucket name.
+ * @param objectPath Object path within bucket.
+ * @param token Firebase download token.
+ * @returns Public download URL string.
+ */
 function buildFirebaseDownloadUrl(bucketName: string, objectPath: string, token: string): string {
 	return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
 }
 
+/**
+ * Attempts to derive storage object path from a persisted PDF URL.
+ *
+ * @param pdfUrl Persisted PDF URL value.
+ * @param bucketName Expected bucket name used for path heuristics.
+ * @returns Object path or null when URL parsing fails.
+ */
 function extractObjectPathFromPdfUrl(pdfUrl: string, bucketName: string): string | null {
 	try {
 		const parsed = new URL(pdfUrl);
@@ -83,6 +122,13 @@ function extractObjectPathFromPdfUrl(pdfUrl: string, bucketName: string): string
 	}
 }
 
+/**
+ * Parses a single HTTP byte-range header against a known file size.
+ *
+ * @param rangeHeader Raw Range header value.
+ * @param fileSize Total file size in bytes.
+ * @returns Parsed byte range or null when invalid/unsupported.
+ */
 function parseRangeHeader(rangeHeader: string, fileSize: number): { start: number; end: number } | null {
 	const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
 
@@ -118,6 +164,30 @@ function parseRangeHeader(rangeHeader: string, fileSize: number): { start: numbe
 	}
 
 	return { start, end };
+}
+
+/**
+ * Checks whether an unknown storage error represents "object not found".
+ *
+ * @param error Unknown thrown value from storage SDK.
+ * @returns True when error indicates missing object.
+ */
+function isStorageNotFoundError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+
+	const code = 'code' in error ? (error as { code?: unknown }).code : undefined;
+	if (code === 404 || code === '404') {
+		return true;
+	}
+
+	const message =
+		'message' in error && typeof (error as { message?: unknown }).message === 'string'
+			? (error as { message: string }).message
+			: '';
+
+	return /no such object|not found/i.test(message);
 }
 
 router.use(verifyToken);
@@ -321,10 +391,22 @@ router.get('/:id/pdf', async (req, res) => {
 		const candidateObjectPaths = [...new Set([parsedObjectPath, fallbackObjectPath].filter(Boolean))] as string[];
 
 		let resolvedFile = null as ReturnType<typeof bucket.file> | null;
+		let lastLookupError: unknown = null;
 
 		for (const candidatePath of candidateObjectPaths) {
 			const file = bucket.file(candidatePath);
-			const [exists] = await file.exists();
+
+			let exists = false;
+			try {
+				[exists] = await file.exists();
+			} catch (lookupError) {
+				if (isStorageNotFoundError(lookupError)) {
+					continue;
+				}
+
+				lastLookupError = lookupError;
+				continue;
+			}
 
 			if (exists) {
 				resolvedFile = file;
@@ -333,21 +415,33 @@ router.get('/:id/pdf', async (req, res) => {
 		}
 
 		if (!resolvedFile) {
+			if (lastLookupError) {
+				throw lastLookupError;
+			}
+
 			res.status(404).json({ error: 'PDF file not found in storage.' });
 			return;
 		}
 
-		const [metadata] = await resolvedFile.getMetadata();
-		const fileSize = Number(metadata.size ?? 0);
-		const contentType = metadata.contentType ?? 'application/pdf';
+		const rangeHeader = req.headers.range;
+		let fileSize: number | null = null;
+		let contentType = 'application/pdf';
+
+		try {
+			const [metadata] = await resolvedFile.getMetadata();
+			const parsedSize = Number(metadata.size ?? 0);
+
+			fileSize = Number.isFinite(parsedSize) && parsedSize > 0 ? parsedSize : null;
+			contentType = metadata.contentType ?? contentType;
+		} catch {
+			// If metadata read fails, still attempt full-file streaming below.
+		}
 
 		res.setHeader('Content-Type', contentType);
-		res.setHeader('Accept-Ranges', 'bytes');
+		res.setHeader('Accept-Ranges', fileSize ? 'bytes' : 'none');
 		res.setHeader('Cache-Control', 'private, max-age=0, must-revalidate');
 
-		const rangeHeader = req.headers.range;
-
-		if (rangeHeader && fileSize > 0) {
+		if (rangeHeader && fileSize) {
 			const parsedRange = parseRangeHeader(rangeHeader, fileSize);
 
 			if (!parsedRange) {
@@ -377,7 +471,7 @@ router.get('/:id/pdf', async (req, res) => {
 			return;
 		}
 
-		if (fileSize > 0) {
+		if (fileSize) {
 			res.setHeader('Content-Length', String(fileSize));
 		}
 

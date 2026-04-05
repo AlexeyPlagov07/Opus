@@ -1,3 +1,9 @@
+/**
+ * Score viewer and annotation workspace.
+ *
+ * Loads score PDFs (direct URL or authenticated proxy), renders pages to canvas,
+ * and supports local annotation editing with persistence in localStorage.
+ */
 import {
   useEffect,
   useMemo,
@@ -129,20 +135,46 @@ const RESIZE_HANDLE_CONFIGS: Array<{
   { id: 'w', className: 'left-0 top-1/2 -translate-x-1/2 -translate-y-1/2', cursor: 'ew-resize' },
 ];
 
+/**
+ * Builds localStorage key for per-score annotation state.
+ *
+ * @param scoreId Score identifier.
+ * @returns Storage key string.
+ */
 function getAnnotationStorageKey(scoreId: string): string {
   return `${ANNOTATION_STORAGE_PREFIX}${scoreId}`;
 }
 
+/**
+ * Computes text annotation line height from font size.
+ *
+ * @param fontSize Text font size in pixels.
+ * @returns Line height in pixels.
+ */
 function getTextLineHeight(fontSize: number): number {
   return Math.round(fontSize * 1.35);
 }
 
+/**
+ * Computes minimum text annotation box height for multiline content.
+ *
+ * @param text Annotation text content.
+ * @param fontSize Text font size in pixels.
+ * @returns Box height in pixels.
+ */
 function getTextBoxHeight(text: string, fontSize: number): number {
   const lineCount = Math.max(text.split('\n').length, 1);
 
   return Math.max(DEFAULT_TEXT_BOX_HEIGHT, lineCount * getTextLineHeight(fontSize) + 16);
 }
 
+/**
+ * Safely converts unknown errors into displayable messages.
+ *
+ * @param error Unknown thrown value.
+ * @param fallback Message used when error has no string message.
+ * @returns Human-readable error message.
+ */
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) {
     return error.message;
@@ -151,10 +183,24 @@ function toErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * Clamps a number into a bounded range.
+ *
+ * @param value Input value.
+ * @param min Inclusive minimum.
+ * @param max Inclusive maximum.
+ * @returns Clamped value.
+ */
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Applies drawing style for pen/highlighter stroke rendering.
+ *
+ * @param context Annotation canvas context.
+ * @param annotation Stroke rendering style source.
+ */
 function configureStrokeContext(
   context: CanvasRenderingContext2D,
   annotation: Pick<StrokeAnnotation, 'mode' | 'color' | 'width'>
@@ -174,6 +220,12 @@ function configureStrokeContext(
   context.globalCompositeOperation = 'source-over';
 }
 
+/**
+ * Renders one stroke annotation to canvas.
+ *
+ * @param context Annotation canvas context.
+ * @param annotation Stroke annotation to draw.
+ */
 function drawStroke(context: CanvasRenderingContext2D, annotation: StrokeAnnotation): void {
   if (annotation.points.length === 0) {
     return;
@@ -201,6 +253,12 @@ function drawStroke(context: CanvasRenderingContext2D, annotation: StrokeAnnotat
   context.stroke();
 }
 
+/**
+ * Renders one text annotation to canvas.
+ *
+ * @param context Annotation canvas context.
+ * @param annotation Text annotation to draw.
+ */
 function drawText(context: CanvasRenderingContext2D, annotation: TextAnnotation): void {
   context.globalAlpha = 1;
   context.globalCompositeOperation = 'source-over';
@@ -227,10 +285,25 @@ function drawText(context: CanvasRenderingContext2D, annotation: TextAnnotation)
   }
 }
 
+/**
+ * Computes Euclidean distance between two points.
+ *
+ * @param pointA First point.
+ * @param pointB Second point.
+ * @returns Point distance.
+ */
 function distance(pointA: Point, pointB: Point): number {
   return Math.hypot(pointA.x - pointB.x, pointA.y - pointB.y);
 }
 
+/**
+ * Computes the minimum distance from a point to a segment.
+ *
+ * @param point Probe point.
+ * @param start Segment start point.
+ * @param end Segment end point.
+ * @returns Minimum distance to segment.
+ */
 function pointToSegmentDistance(point: Point, start: Point, end: Point): number {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -248,6 +321,13 @@ function pointToSegmentDistance(point: Point, start: Point, end: Point): number 
   });
 }
 
+/**
+ * Checks whether a point falls within a text annotation box.
+ *
+ * @param point Probe point.
+ * @param annotation Text annotation bounds.
+ * @returns True when point is inside the text box rectangle.
+ */
 function isPointInsideTextBox(point: Point, annotation: TextAnnotation): boolean {
   return (
     point.x >= annotation.x &&
@@ -257,6 +337,13 @@ function isPointInsideTextBox(point: Point, annotation: TextAnnotation): boolean
   );
 }
 
+/**
+ * Checks whether a point is close enough to a stroke to select it.
+ *
+ * @param point Probe point.
+ * @param annotation Stroke annotation.
+ * @returns True when point is within stroke selection tolerance.
+ */
 function isPointNearStroke(point: Point, annotation: StrokeAnnotation): boolean {
   const tolerance = Math.max(annotation.width + 4, 8);
 
@@ -273,6 +360,13 @@ function isPointNearStroke(point: Point, annotation: StrokeAnnotation): boolean 
   return false;
 }
 
+/**
+ * Finds the top-most selectable annotation at a point.
+ *
+ * @param point Probe point.
+ * @param annotations Candidate annotation stack for a page.
+ * @returns Top-most hit annotation or null.
+ */
 function findTopAnnotationAtPoint(point: Point, annotations: ViewerAnnotation[]): ViewerAnnotation | null {
   for (let index = annotations.length - 1; index >= 0; index -= 1) {
     const annotation = annotations[index];
@@ -289,6 +383,15 @@ function findTopAnnotationAtPoint(point: Point, annotations: ViewerAnnotation[])
   return null;
 }
 
+/**
+ * Moves a text annotation while keeping it within canvas bounds.
+ *
+ * @param annotation Text annotation to move.
+ * @param dx Horizontal movement delta.
+ * @param dy Vertical movement delta.
+ * @param canvasSize Canvas width/height point.
+ * @returns Moved text annotation.
+ */
 function moveTextAnnotation(annotation: TextAnnotation, dx: number, dy: number, canvasSize: Point): TextAnnotation {
   return {
     ...annotation,
@@ -297,6 +400,15 @@ function moveTextAnnotation(annotation: TextAnnotation, dx: number, dy: number, 
   };
 }
 
+/**
+ * Moves a stroke annotation while preserving stroke shape and bounds.
+ *
+ * @param annotation Stroke annotation to move.
+ * @param dx Horizontal movement delta.
+ * @param dy Vertical movement delta.
+ * @param canvasSize Canvas width/height point.
+ * @returns Moved stroke annotation.
+ */
 function moveStrokeAnnotation(
   annotation: StrokeAnnotation,
   dx: number,
@@ -331,6 +443,14 @@ function moveStrokeAnnotation(
   };
 }
 
+/**
+ * Clears and redraws the annotation overlay canvas.
+ *
+ * @param canvas Annotation canvas element.
+ * @param width CSS pixel width.
+ * @param height CSS pixel height.
+ * @param annotations Page annotations to render.
+ */
 function redrawAnnotationCanvas(
   canvas: HTMLCanvasElement,
   width: number,
@@ -357,6 +477,12 @@ function redrawAnnotationCanvas(
   });
 }
 
+/**
+ * Normalizes deserialized localStorage annotation data into safe runtime shape.
+ *
+ * @param raw Unknown parsed JSON payload.
+ * @returns Normalized annotation map keyed by page.
+ */
 function normalizeAnnotationMap(raw: unknown): AnnotationMap {
   if (!raw || typeof raw !== 'object') {
     return {};
@@ -429,6 +555,12 @@ function normalizeAnnotationMap(raw: unknown): AnnotationMap {
   return normalized;
 }
 
+/**
+ * Main score viewer component.
+ *
+ * @param score Score metadata used to load and render score assets.
+ * @returns Interactive score viewer UI.
+ */
 export default function ScoreViewer({ score }: ScoreViewerProps): JSX.Element {
   const { user } = useAuth();
   const viewerHostRef = useRef<HTMLDivElement | null>(null);

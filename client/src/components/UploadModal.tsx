@@ -1,3 +1,9 @@
+/**
+ * Upload modal feature.
+ *
+ * Handles PDF validation, metadata capture, backend upload, and post-upload
+ * processing notification for a score.
+ */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -24,10 +30,23 @@ const INSTRUMENT_OPTIONS = [
   'Other',
 ];
 
+/**
+ * Derives a default title from an uploaded filename.
+ *
+ * @param fileName Uploaded file name.
+ * @returns Title without the .pdf extension.
+ */
 function getTitleFromFilename(fileName: string): string {
   return fileName.replace(/\.pdf$/i, '').trim() || 'Untitled Score';
 }
 
+/**
+ * Upload dialog for selecting a PDF and score metadata.
+ *
+ * @param isOpen Whether the modal is visible.
+ * @param onClose Callback invoked after close/cancel.
+ * @returns Modal UI, or null when hidden.
+ */
 export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.Element | null {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -62,6 +81,12 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
     return null;
   }
 
+  /**
+   * Notifies backend queue endpoint to start score processing.
+   *
+   * @param scoreId Uploaded score id.
+   * @returns Promise that resolves when notification request completes.
+   */
   async function notifyBackend(scoreId: string): Promise<void> {
     if (!user) {
       return;
@@ -95,6 +120,12 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
     }
   }
 
+  /**
+   * Validates upload file constraints.
+   *
+   * @param file Candidate PDF file.
+   * @returns Null when valid, otherwise an error message.
+   */
   function validateFile(file: File): string | null {
     if (file.type !== 'application/pdf') {
       return 'Only PDF files are allowed.';
@@ -107,6 +138,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
     return null;
   }
 
+  /**
+   * Executes backend upload and processing notification flow.
+   *
+   * @returns Promise that resolves after upload flow completion.
+   */
   async function uploadFile(): Promise<void> {
     if (!selectedFile) {
       setError('Select a PDF file to upload.');
@@ -188,6 +224,11 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
     }
   }
 
+  /**
+   * Handles file picker and drag-drop selection.
+   *
+   * @param files File list from browser file input/drop event.
+   */
   function handleFileSelection(files: FileList | null): void {
     if (uploading) {
       return;

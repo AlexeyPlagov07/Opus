@@ -1,3 +1,9 @@
+/**
+ * Shared domain contracts used by both client and server.
+ *
+ * These types define persisted score data and timestamp shapes so both
+ * applications can share the same API and Firestore document expectations.
+ */
 export type ScoreStatus = 'uploaded' | 'processing' | 'ready' | 'error';
 
 export interface FirestoreTimestamp {

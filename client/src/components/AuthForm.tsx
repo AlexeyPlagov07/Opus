@@ -1,9 +1,21 @@
+/**
+ * Authentication form component.
+ *
+ * Handles email/password sign-in, registration, and Google sign-in from a
+ * single UI surface with friendly error messaging.
+ */
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 type Mode = 'login' | 'register';
 
+/**
+ * Maps raw Firebase auth errors to user-friendly messages.
+ *
+ * @param message Raw Firebase error message.
+ * @returns Human-readable auth error message.
+ */
 function mapFirebaseError(message: string): string {
   if (message.includes('auth/invalid-credential')) {
     return 'Invalid email or password.';
@@ -24,6 +36,11 @@ function mapFirebaseError(message: string): string {
   return 'Something went wrong. Please try again.';
 }
 
+/**
+ * Renders and manages auth form state.
+ *
+ * @returns Login/register UI card.
+ */
 export default function AuthForm(): JSX.Element {
   const navigate = useNavigate();
   const { signInWithEmail, signInWithGoogle, signUpWithEmail } = useAuth();
@@ -34,6 +51,12 @@ export default function AuthForm(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  /**
+   * Submits email/password auth flow for current mode.
+   *
+   * @param event React form submit event.
+   * @returns Promise that resolves after auth attempt completes.
+   */
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setError(null);
@@ -55,6 +78,11 @@ export default function AuthForm(): JSX.Element {
     }
   }
 
+  /**
+   * Starts Google OAuth sign-in.
+   *
+   * @returns Promise that resolves after popup flow completes.
+   */
   async function handleGoogleSignIn(): Promise<void> {
     setError(null);
     setSubmitting(true);

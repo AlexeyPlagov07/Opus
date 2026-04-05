@@ -1,7 +1,18 @@
+/**
+ * Score viewer route page.
+ *
+ * Resolves a score from the live score collection and renders stateful loading,
+ * error, not-found, and viewer views.
+ */
 import { Link, Navigate, useParams } from 'react-router-dom';
 import ScoreViewer from '../components/ScoreViewer';
 import { useScores } from '../hooks/useScores';
 
+/**
+ * Renders score viewer page for the route score id.
+ *
+ * @returns Score viewer screen or fallback state view.
+ */
 export default function ScoreViewerPage(): JSX.Element {
   const { scoreId } = useParams<{ scoreId: string }>();
   const { scores, loading, error } = useScores();
@@ -36,9 +47,9 @@ export default function ScoreViewerPage(): JSX.Element {
     );
   }
 
-  const score = scores.find((candidate) => candidate.id === scoreId);
+  const matchedScore = scores.find((candidateScore) => candidateScore.id === scoreId);
 
-  if (!score) {
+  if (!matchedScore) {
     return (
       <div className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -54,5 +65,5 @@ export default function ScoreViewerPage(): JSX.Element {
     );
   }
 
-  return <ScoreViewer score={score} />;
+  return <ScoreViewer score={matchedScore} />;
 }

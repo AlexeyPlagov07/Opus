@@ -1,3 +1,9 @@
+/**
+ * Dashboard feature component.
+ *
+ * Displays the authenticated user's uploaded scores, supports searching and
+ * sorting, and coordinates score upload and deletion flows.
+ */
 import { deleteObject, listAll, ref } from 'firebase/storage';
 import { deleteDoc, doc } from 'firebase/firestore';
 import { useMemo, useState } from 'react';
@@ -17,6 +23,11 @@ type SortOption =
 
 const LAST_OPENED_STORAGE_KEY = 'opus:lastOpenedByScoreId:v1';
 
+/**
+ * Reads persisted "last opened" timestamps used for sorting.
+ *
+ * @returns Map of score id to epoch milliseconds.
+ */
 function readLastOpenedByScoreId(): Record<string, number> {
   try {
     const raw = localStorage.getItem(LAST_OPENED_STORAGE_KEY);
@@ -45,10 +56,21 @@ function readLastOpenedByScoreId(): Record<string, number> {
   }
 }
 
+/**
+ * Converts Firestore timestamp to sortable epoch milliseconds.
+ *
+ * @param score Score whose creation time should be converted.
+ * @returns Millisecond timestamp used for ordering.
+ */
 function getCreatedAtSortValue(score: Score): number {
   return score.createdAt.seconds * 1000 + Math.floor(score.createdAt.nanoseconds / 1_000_000);
 }
 
+/**
+ * Renders dashboard layout and interactions.
+ *
+ * @returns Dashboard screen.
+ */
 export default function Dashboard(): JSX.Element {
   const { user, signOut } = useAuth();
   const { scores, loading, error } = useScores();
@@ -127,6 +149,11 @@ export default function Dashboard(): JSX.Element {
     return sorted;
   }, [searchedScores, sortBy, lastOpenedByScoreId]);
 
+  /**
+   * Marks a score as recently opened for local sorting.
+   *
+   * @param scoreId Score id being opened.
+   */
   function handleOpenScore(scoreId: string): void {
     setLastOpenedByScoreId((previous) => {
       const next = {
@@ -144,6 +171,12 @@ export default function Dashboard(): JSX.Element {
     });
   }
 
+  /**
+   * Deletes a score and related storage artifacts.
+   *
+   * @param score Score to delete.
+   * @returns Promise that resolves when delete attempt finishes.
+   */
   async function handleDelete(score: Score): Promise<void> {
     if (!user) {
       return;
