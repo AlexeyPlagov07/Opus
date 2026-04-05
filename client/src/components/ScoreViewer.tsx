@@ -1886,6 +1886,8 @@ export default function ScoreViewer({ score }: ScoreViewerProps): JSX.Element {
     });
   }
 
+  const colorInputRef = useRef<HTMLInputElement | null>(null);
+
   return (
     <div className="min-h-screen bg-slate-100">
       <header className="border-b border-slate-200 bg-white">
@@ -1931,19 +1933,22 @@ export default function ScoreViewer({ score }: ScoreViewerProps): JSX.Element {
 
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Color</p>
+
               <div className="flex items-center gap-2">
-                {TOOL_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    type="button"
-                    aria-label={`Select color ${color}`}
-                    onClick={() => setActiveColor(color)}
-                    className={`h-7 w-7 rounded-full border transition ${
-                      activeColor === color ? 'ring-2 ring-slate-900 ring-offset-2' : 'border-white/70'
-                    }`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
+                <button
+                  type="button"
+                  aria-label="Choose color"
+                  onClick={() => colorInputRef.current?.click()}
+                  className="h-7 w-7 rounded-full border border-white/70 ring-2 ring-slate-900 ring-offset-2"
+                  style={{ backgroundColor: activeColor }}
+                />
+                <input
+                  ref={colorInputRef}
+                  type="color"
+                  value={activeColor}
+                  onChange={(event) => setActiveColor(event.target.value)}
+                  className="sr-only"
+                />
               </div>
             </div>
 
