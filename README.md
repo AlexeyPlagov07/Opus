@@ -14,9 +14,34 @@ It lets users:
 
 ## Stack
 
-- Client: React, TypeScript, Vite, Tailwind
-- Server: Node.js, Express, TypeScript
-- Data/Auth/Files: Firebase Auth, Firestore, Cloud Storage
+- Frameworks
+   - React
+   - Express
+   - Vite
+   - Tailwind CSS
+
+- Libraries
+   - React DOM
+   - React Router DOM
+   - Firebase client SDK
+   - Firebase Admin SDK
+   - PDF.js
+   - cors
+   - multer
+   - dotenv
+   - TypeScript
+   - @vitejs/plugin-react
+   - PostCSS
+   - Autoprefixer
+
+- Other things used in the app
+   - Firebase Authentication
+   - Firestore
+   - Cloud Storage
+   - Node.js runtime
+   - localStorage for annotation persistence
+   - Canvas rendering for the score viewer
+   - Pointer events and ResizeObserver for annotation interaction
 
 ## Prerequisites
 
