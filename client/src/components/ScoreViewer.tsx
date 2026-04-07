@@ -724,7 +724,7 @@ export default function ScoreViewer({ score }: ScoreViewerProps): JSX.Element {
 
         const fileSource = shouldUseProxy
           ? {
-              url: `${baseUrl}/scores/${score.id}/pdf`,
+              url: `${baseUrl}/api/scores/${score.id}/pdf`,
               httpHeaders: {
                 Authorization: `Bearer ${await user!.getIdToken()}`,
               },

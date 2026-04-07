@@ -190,7 +190,7 @@ export default function Dashboard(): JSX.Element {
       const baseUrl = import.meta.env.VITE_API_BASE_URL;
 
       if (baseUrl) {
-        const response = await fetch(`${baseUrl}/scores/${score.id}`, {
+        const response = await fetch(`${baseUrl}/api/scores/${score.id}`, {
           method: 'DELETE',
           headers: {
             Authorization: `Bearer ${token}`,

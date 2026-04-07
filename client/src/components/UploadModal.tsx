@@ -99,7 +99,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
       return;
     }
 
-    const response = await fetch(`${baseUrl}/scores`, {
+    const response = await fetch(`${baseUrl}/api/scores`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -185,7 +185,7 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
       payload.append('difficulty', String(normalizedDifficulty));
 
       setProgress(25);
-      const uploadResponse = await fetch(`${baseUrl}/scores/upload`, {
+      const uploadResponse = await fetch(`${baseUrl}/api/scores/upload`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
