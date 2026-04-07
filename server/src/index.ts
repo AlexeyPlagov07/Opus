@@ -12,7 +12,11 @@ import scoresRouter from './routes/scores';
 
 export const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
+const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN ?? 'http://localhost:5173')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+const ALLOW_VERCEL_PREVIEW_ORIGINS = process.env.ALLOW_VERCEL_PREVIEW_ORIGINS !== 'false';
 
 /**
  * Returns a normalized message for unhandled server errors.
@@ -24,9 +28,38 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Unexpected server error.';
 }
 
+/**
+ * Validates whether a request origin is allowed by CORS policy.
+ *
+ * @param requestOrigin Origin header value from incoming request.
+ * @returns True when origin is explicitly configured or allowed preview domain.
+ */
+function isAllowedOrigin(requestOrigin: string | undefined): boolean {
+  if (!requestOrigin) {
+    return true;
+  }
+
+  if (CLIENT_ORIGINS.includes(requestOrigin)) {
+    return true;
+  }
+
+  if (ALLOW_VERCEL_PREVIEW_ORIGINS && /\.vercel\.app$/i.test(requestOrigin)) {
+    return true;
+  }
+
+  return false;
+}
+
 app.use(
   cors({
-    origin: CLIENT_ORIGIN,
+    origin: (requestOrigin, callback) => {
+      if (isAllowedOrigin(requestOrigin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error('CORS origin not allowed.'));
+    },
     credentials: true,
   })
 );
