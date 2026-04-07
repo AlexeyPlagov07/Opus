@@ -1,4 +1,18 @@
 {
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/api"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/scores/:path*",
+      "destination": "/api/scores/:path*"
+    }
+  ],
   "functions": {
     "api/[...path].ts": {
       "maxDuration": 60
