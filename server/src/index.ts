@@ -32,11 +32,12 @@ app.use(
 );
 app.use(express.json());
 
-app.get('/health', (_req, res) => {
+app.get(['/health', '/api/health'], (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
 app.use('/scores', scoresRouter);
+app.use('/api/scores', scoresRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found.' });
