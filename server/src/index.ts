@@ -10,7 +10,7 @@ import type { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import scoresRouter from './routes/scores';
 
-const app = express();
+export const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN ?? 'http://localhost:5173';
 
@@ -46,7 +46,9 @@ app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ error: getErrorMessage(error) });
 });
 
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Server listening on port ${PORT}`);
-});
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    // eslint-disable-next-line no-console
+    console.log(`Server listening on port ${PORT}`);
+  });
+}
