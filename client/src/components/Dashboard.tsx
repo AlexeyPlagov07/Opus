@@ -187,9 +187,9 @@ export default function Dashboard(): JSX.Element {
 
     try {
       const token = await user.getIdToken();
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const baseUrl = import.meta.env.PROD ? '' : import.meta.env.VITE_API_BASE_URL;
 
-      if (baseUrl) {
+      if (import.meta.env.PROD || baseUrl) {
         const response = await fetch(`${baseUrl}/api/scores/${score.id}`, {
           method: 'DELETE',
           headers: {

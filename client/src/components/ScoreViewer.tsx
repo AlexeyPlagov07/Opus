@@ -715,10 +715,12 @@ export default function ScoreViewer({ score }: ScoreViewerProps): JSX.Element {
 
     async function loadPdf(): Promise<void> {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') as string | undefined;
-        const shouldUseProxy = Boolean(baseUrl && user);
+        const baseUrl = import.meta.env.PROD
+          ? ''
+          : (import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') as string | undefined);
+        const shouldUseProxy = Boolean(user) && (import.meta.env.PROD || Boolean(baseUrl));
 
-        if (baseUrl && !user) {
+        if ((import.meta.env.PROD || baseUrl) && !user) {
           throw new Error('Missing authenticated user for PDF proxy fetch.');
         }
 

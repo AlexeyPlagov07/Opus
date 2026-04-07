@@ -93,9 +93,9 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
     }
 
     const token = await user.getIdToken();
-    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    const baseUrl = import.meta.env.PROD ? '' : import.meta.env.VITE_API_BASE_URL;
 
-    if (!baseUrl) {
+    if (!import.meta.env.PROD && !baseUrl) {
       return;
     }
 
@@ -170,9 +170,9 @@ export default function UploadModal({ isOpen, onClose }: UploadModalProps): JSX.
     setProgress(0);
 
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      const baseUrl = import.meta.env.PROD ? '' : import.meta.env.VITE_API_BASE_URL;
 
-      if (!baseUrl) {
+      if (!import.meta.env.PROD && !baseUrl) {
         throw new Error('Missing VITE_API_BASE_URL. Backend upload is required for custom GCS buckets.');
       }
 
