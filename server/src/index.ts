@@ -19,6 +19,20 @@ const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN ?? 'http://localhost:5173')
 const ALLOW_VERCEL_PREVIEW_ORIGINS = process.env.ALLOW_VERCEL_PREVIEW_ORIGINS !== 'false';
 
 /**
+ * Safely parses an origin string into URL components.
+ *
+ * @param origin Raw origin header value.
+ * @returns URL instance or null when parsing fails.
+ */
+function parseOrigin(origin: string): URL | null {
+  try {
+    return new URL(origin);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Returns a normalized message for unhandled server errors.
  *
  * @param error Unknown thrown value from middleware/route stack.
@@ -43,29 +57,36 @@ function isAllowedOrigin(requestOrigin: string | undefined): boolean {
     return true;
   }
 
-  if (ALLOW_VERCEL_PREVIEW_ORIGINS && /\.vercel\.app$/i.test(requestOrigin)) {
+  const parsedOrigin = parseOrigin(requestOrigin);
+
+  if (!parsedOrigin) {
+    return false;
+  }
+
+  if (ALLOW_VERCEL_PREVIEW_ORIGINS && parsedOrigin.hostname.toLowerCase().endsWith('.vercel.app')) {
     return true;
   }
 
   return false;
 }
 
-app.use(
-  cors({
-    origin: (requestOrigin, callback) => {
-      if (isAllowedOrigin(requestOrigin)) {
-        callback(null, true);
-        return;
-      }
+const corsOptions: cors.CorsOptions = {
+  origin: (requestOrigin, callback) => {
+    if (isAllowedOrigin(requestOrigin)) {
+      callback(null, true);
+      return;
+    }
 
-      callback(new Error('CORS origin not allowed.'));
-    },
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Authorization', 'Content-Type', 'Range'],
-    exposedHeaders: ['Accept-Ranges', 'Content-Length', 'Content-Range', 'Content-Type'],
-    credentials: true,
-  })
-);
+    callback(new Error('CORS origin not allowed.'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Authorization', 'Content-Type', 'Range'],
+  exposedHeaders: ['Accept-Ranges', 'Content-Length', 'Content-Range', 'Content-Type'],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 
 app.get(['/', '/api'], (_req, res) => {
