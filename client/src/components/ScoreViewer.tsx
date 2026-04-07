@@ -735,7 +735,18 @@ export default function ScoreViewer({ score }: ScoreViewerProps): JSX.Element {
           return;
         }
 
-        loadingTask = getDocument(fileSource);
+        loadingTask =
+          typeof fileSource === 'string'
+            ? getDocument({
+                url: fileSource,
+                disableRange: true,
+                disableStream: true,
+              })
+            : getDocument({
+                ...fileSource,
+                disableRange: true,
+                disableStream: true,
+              });
         const nextDoc = await loadingTask.promise;
 
         if (cancelled) {

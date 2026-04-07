@@ -60,6 +60,9 @@ app.use(
 
       callback(new Error('CORS origin not allowed.'));
     },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Range'],
+    exposedHeaders: ['Accept-Ranges', 'Content-Length', 'Content-Range', 'Content-Type'],
     credentials: true,
   })
 );
