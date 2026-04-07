@@ -32,6 +32,10 @@ app.use(
 );
 app.use(express.json());
 
+app.get(['/', '/api'], (_req, res) => {
+  res.status(200).json({ ok: true, service: 'opus-backend' });
+});
+
 app.get(['/health', '/api/health'], (_req, res) => {
   res.status(200).json({ ok: true });
 });
